@@ -20,7 +20,7 @@ enum WakeOnLan {
             packet.append(contentsOf: target)
         }
 
-        let fd = Darwin.socket(AF_INET, Int32(SOCK_DGRAM.rawValue), Int32(IPPROTO_UDP))
+        let fd = Darwin.socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         guard fd >= 0 else { return false }
         defer { Darwin.close(fd) }
 
