@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>GLOT Remote Mac</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_glotremote._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>GLOT Remote Mac announces this Mac on the local network and accepts a paired iPhone. Commands stay on the local network.</string>
+</dict>
+</plist>
