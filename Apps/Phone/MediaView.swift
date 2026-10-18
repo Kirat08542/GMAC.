@@ -11,7 +11,7 @@ struct MediaScreen: View {
     }
 
     var body: some View {
-        let play: CGFloat = compact ? 96 : 144
+        let play: CGFloat = compact ? 88 : 120
         let side = play * 72 / 120
         let gap = play * 28 / 120
         let transportRow = HStack(alignment: .center, spacing: gap) {
@@ -19,73 +19,56 @@ struct MediaScreen: View {
             transport("Play Pause", systemImage: "playpause.fill", action: "playPause", size: play, prominent: true)
             transport("Next", systemImage: "forward.fill", action: "next", size: side)
         }
-        .background {
-            Circle()
-                .fill(RemoteTheme.glow)
-                .blur(radius: 48)
-                .padding(-36)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
         let caption = Text("Play, pause, and skip use the Mac media keys. Volume is the system volume. Hold a volume key to keep going.")
             .font(.caption)
-            .foregroundStyle(RemoteTheme.secondary)
+            .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .lineLimit(compact ? 1 : nil)
             .padding(.horizontal, verticalSizeClass == .compact ? 12 : 24)
-        let volume = HStack(spacing: 8) {
+        let volume = HStack(spacing: 12) {
             volumeButton("Volume Down", systemImage: "speaker.minus.fill", action: "volumeDown")
             muteButton
             volumeButton("Volume Up", systemImage: "speaker.plus.fill", action: "volumeUp")
         }
-        .padding(12)
-        .frame(maxWidth: .infinity)
-        .background(RemoteTheme.plate, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(RemoteTheme.hairline, lineWidth: 1)
-        }
+        .padding(.horizontal, 24)
         Group {
             if verticalSizeClass == .compact {
                 HStack(alignment: .center, spacing: 0) {
                     VStack(spacing: 16) {
-                        GateNote(text: gateCopy)
-                        ConsoleSectionHeader(title: "Transport")
+                        if let gate = gateCopy {
+                            Text(gate)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .allowsHitTesting(false)
+                        }
                         transportRow
                         caption
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 12)
-                    VStack(spacing: 8) {
-                        ConsoleSectionHeader(title: "Volume")
-                        volume
-                    }
-                    .containerRelativeFrame(.horizontal) { width, _ in width * 0.46 }
-                    .padding(.trailing, 10)
+                    volume
+                        .containerRelativeFrame(.horizontal) { width, _ in width * 0.46 }
                 }
             } else {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     VStack(spacing: 18) {
-                        GateNote(text: gateCopy)
-                        ConsoleSectionHeader(title: "Transport")
+                        if let gate = gateCopy {
+                            Text(gate)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .allowsHitTesting(false)
+                        }
                         transportRow
                             .padding(.horizontal, 24)
                         caption
                     }
                     Spacer(minLength: 0)
-                    VStack(spacing: 8) {
-                        ConsoleSectionHeader(title: "Volume")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        volume
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
+                    volume
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RemoteTheme.canvas)
         .clipped()
     }
 
@@ -103,16 +86,11 @@ struct MediaScreen: View {
         } label: {
             Image(systemName: systemImage)
                 .font(.system(size: prominent ? 36 : 20, weight: .semibold))
-                .foregroundStyle(prominent ? RemoteTheme.onAccent : RemoteTheme.text)
+                .foregroundStyle(prominent ? .white : .primary)
                 .frame(width: size, height: size)
-                .background(prominent ? RemoteTheme.accent : RemoteTheme.keyFill, in: Circle())
-                .overlay {
-                    if !prominent {
-                        Circle().strokeBorder(RemoteTheme.hairline, lineWidth: 1)
-                    }
-                }
+                .background(prominent ? Color.accentColor : Color(.secondarySystemBackground), in: Circle())
         }
-        .buttonStyle(RemotePressStyle())
+        .buttonStyle(.plain)
         .disabled(!model.isReady)
         .opacity(model.isReady ? 1 : 0.45)
         .accessibilityLabel(title)
@@ -124,9 +102,9 @@ struct MediaScreen: View {
         } label: {
             Image(systemName: "speaker.slash.fill")
                 .font(.title2)
-                .foregroundStyle(RemoteTheme.text)
-                .frame(maxWidth: .infinity, minHeight: 64)
-                .remoteKey(capsule: true)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .background(Color(.secondarySystemBackground), in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(!model.isReady)
@@ -152,8 +130,9 @@ private struct VolumeKey: View {
     var body: some View {
         Image(systemName: systemImage)
             .font(.title2)
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .remoteKey(pressed: held, capsule: true)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(held ? Color(.systemGray3) : Color(.secondarySystemBackground), in: Capsule())
             .opacity(enabled ? 1 : 0.45)
             .gesture(
                 DragGesture(minimumDistance: 0)

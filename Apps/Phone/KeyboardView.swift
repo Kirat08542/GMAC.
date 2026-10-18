@@ -32,7 +32,6 @@ struct KeyboardScreen: View {
                 }
             }
         }
-        .background(RemoteTheme.canvas)
         .clipped()
     }
 
@@ -43,14 +42,14 @@ struct KeyboardScreen: View {
                 .padding(.top, 4)
             Text("Highlight a shortcut key, then type a letter. Password fields on the Mac reject these keys.")
                 .font(.caption)
-                .foregroundStyle(RemoteTheme.secondary)
+                .foregroundStyle(.secondary)
                 .lineLimit(captionLimit)
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
             if let gate = gateCopy {
                 Text(gate)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(RemoteTheme.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
@@ -61,23 +60,14 @@ struct KeyboardScreen: View {
 
     private func deck(key: CGFloat, gap: CGFloat) -> some View {
         VStack(spacing: gap) {
-            ConsoleSectionHeader(title: "Modifiers")
-                .frame(maxWidth: .infinity, alignment: .leading)
             modifierRow(minHeight: key)
-            ConsoleSectionHeader(title: "Keys")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 4)
             keyGrid(key: key, gap: gap)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .background(RemoteTheme.plate, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(RemoteTheme.hairline, lineWidth: 1)
-        }
         .padding(.horizontal, 12)
+        .padding(.top, 16)
         .padding(.bottom, 10)
+        .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemBackground))
     }
 
     private var gateCopy: String? {
@@ -89,22 +79,13 @@ struct KeyboardScreen: View {
     }
 
     private var field: some View {
-        HStack(spacing: 10) {
-            Text("›")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(RemoteTheme.accent)
-                .accessibilityHidden(true)
-            TextField("Type into the Mac", text: $draft)
-                .textFieldStyle(.plain)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.return)
-                .font(.system(.title3, design: .monospaced))
-                .foregroundStyle(RemoteTheme.text)
-                .accessibilityLabel("Type into the Mac")
-        }
-        .remoteField()
-        .disabled(!model.isReady)
+        TextField("Type into the Mac", text: $draft)
+            .textFieldStyle(.roundedBorder)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.return)
+            .font(.title3)
+            .disabled(!model.isReady)
             .onSubmit {
                 sendChord("return")
             }
@@ -145,7 +126,9 @@ struct KeyboardScreen: View {
                 latched.insert(name)
             }
         }
-        .buttonStyle(RemoteKeyButtonStyle(latched: on, minHeight: minHeight))
+        .font(.body.weight(.semibold))
+        .frame(maxWidth: .infinity, minHeight: minHeight)
+        .buttonStyle(on ? .borderedProminent : .bordered)
         .disabled(!model.isReady)
         .accessibilityLabel(name)
     }
@@ -194,18 +177,6 @@ struct KeyboardScreen: View {
     }
 }
 
-struct RemoteKeyButtonStyle: ButtonStyle {
-    var latched = false
-    var minHeight: CGFloat = 48
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: minHeight)
-            .remoteKey(latched: latched, pressed: configuration.isPressed)
-    }
-}
-
 private struct HoldKey: View {
     var title: String
     var prominent = false
@@ -218,7 +189,9 @@ private struct HoldKey: View {
         Text(title)
             .font(minHeight > 80 ? .system(size: 28, weight: .medium) : .body.weight(.medium))
             .frame(maxWidth: .infinity, minHeight: minHeight)
-            .remoteKey(prominent: prominent, pressed: held)
+            .foregroundStyle(prominent ? .white : .primary)
+            .background(fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .scaleEffect(held ? 0.96 : 1)
             .opacity(enabled ? 1 : 0.45)
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -235,5 +208,15 @@ private struct HoldKey: View {
             )
             .allowsHitTesting(enabled)
             .accessibilityLabel(title)
+    }
+
+    private var fill: Color {
+        if prominent {
+            return .accentColor
+        }
+        if held {
+            return Color(.systemGray3)
+        }
+        return Color(.secondarySystemBackground)
     }
 }

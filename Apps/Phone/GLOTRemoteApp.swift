@@ -43,18 +43,31 @@ private enum RemoteMode: String, CaseIterable, Identifiable {
 
 private struct PhoneShell: View {
     @Bindable var model: PhoneModel
-    @State private var mode = RemoteMode.pad
-    @Namespace private var modes
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @State private var mode: RemoteMode = .pad
 
     var body: some View {
-        VStack(spacing: 0) {
-            if mode != .link {
-                titleRow
+        TabView(selection: $mode) {
+            ForEach(RemoteMode.allCases) { item in
+                tabContent(for: item)
+                    .tabItem {
+                        Label(item.title, systemImage: item.symbol)
+                    }
+                    .tag(item)
             }
+        }
+        .task { await model.prepare() }
+        .onChange(of: isPairing) { _, pairing in
+            if pairing {
+                mode = .link
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tabContent(for item: RemoteMode) -> some View {
+        NavigationStack {
             Group {
-                switch mode {
+                switch item {
                 case .pad:
                     TrackpadScreen(model: model)
                 case .keys:
@@ -67,101 +80,29 @@ private struct PhoneShell: View {
                     PhoneHomeView(model: model)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
-            modeBar
-        }
-        .background(RemoteTheme.canvas)
-        .tint(RemoteTheme.accent)
-        .task { await model.prepare() }
-        .onChange(of: isPairing) { _, pairing in
-            if pairing {
-                mode = .link
-            }
-        }
-    }
-
-    private var titleRow: some View {
-        let note = model.snapshot.note
-        let bad = note.contains("not") || note.contains("Allow Accessibility") || note.contains("rejected")
-        return Button {
-            mode = .link
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .center, spacing: 8) {
-                    Text(mode.title)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(RemoteTheme.text)
-                    Spacer(minLength: 8)
-                    HStack(spacing: 8) {
-                        StatusDot(tint: LinkPresentation.tint(model.snapshot.state))
-                        Text(LinkPresentation.title(model.snapshot.state))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(RemoteTheme.text)
-                            .lineLimit(1)
+            .navigationTitle(item.title)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        mode = .link
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(LinkPresentation.tint(model.snapshot.state))
+                            Text(LinkPresentation.title(model.snapshot.state))
+                                .font(.subheadline)
+                        }
                     }
-                    .frame(minWidth: 44, minHeight: 44)
-                }
-                if !note.isEmpty {
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(bad ? RemoteTheme.bad : RemoteTheme.secondary)
-                        .lineLimit(verticalSizeClass == .compact ? 1 : nil)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Connection status. Opens Link.")
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .accessibilityHint("Opens Link")
     }
 
     private var isPairing: Bool {
-        if case .pairing = model.snapshot.state {
-            return true
-        }
+        if case .pairing = model.snapshot.state { return true }
         return false
-    }
-
-    private var modeBar: some View {
-        HStack(spacing: 0) {
-            ForEach(RemoteMode.allCases) { item in
-                let selected = mode == item
-                Button {
-                    mode = item
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: item.symbol)
-                            .font(.body.weight(.semibold))
-                        Text(item.title)
-                            .font(.caption2.weight(.semibold))
-                            .tracking(0.4)
-                    }
-                    .foregroundStyle(selected ? RemoteTheme.selectedInk : RemoteTheme.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background {
-                        if selected {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(RemoteTheme.selectedFill)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 4)
-                                .matchedGeometryEffect(id: "mode", in: modes)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-                .accessibilityValue(selected ? "Selected" : "")
-            }
-        }
-        .padding(6)
-        .remoteBar()
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
-        .animation(reduceMotion ? nil : RemoteTheme.move, value: mode)
     }
 }

@@ -54,13 +54,13 @@ enum LinkPresentation {
     static func tint(_ state: LinkState) -> Color {
         switch state {
         case .ready:
-            RemoteTheme.good
+            .green
         case .listening, .connecting, .pairing, .authenticating, .reconnecting:
-            RemoteTheme.warn
+            .orange
         case .failed:
-            RemoteTheme.bad
+            .red
         case .idle:
-            RemoteTheme.secondary
+            .secondary
         }
     }
 }

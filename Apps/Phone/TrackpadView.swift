@@ -2,123 +2,57 @@ import GLOTRemoteCore
 import SwiftUI
 import UIKit
 
-// Pad — Night Console redesign. All gesture and scroll logic is unchanged;
-// only the chrome is new: dot-grid surface, docked scroll rail, floating deck.
 struct TrackpadScreen: View {
     @Bindable var model: PhoneModel
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        let spacing: CGFloat = dynamicTypeSize.isAccessibilitySize ? 6 : (verticalSizeClass == .compact ? 8 : 10)
+        let block = controls(spacing: spacing)
+        let pad = HStack(spacing: 0) {
+            surface
+            ScrollWheel(enabled: model.isReady, sensitivity: model.sensitivity) { dy in
+                model.sendRemote([.scroll(ScrollBody(dx: 0, dy: dy))])
+            }
+        }
         Group {
             if verticalSizeClass == .compact {
-                HStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
                     pad
-                    rail
-                    deck
-                        .frame(width: 208)
-                        .padding(.trailing, 10)
-                        .padding(.vertical, 10)
+                    block
+                        .frame(width: 200)
+                        .clipped()
                 }
             } else {
                 VStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        pad
-                        rail
-                    }
-                    deck
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                    pad
+                    block
                 }
             }
         }
-        .background(RemoteTheme.canvas)
         .clipped()
     }
 
-    private var pad: some View {
-        ZStack {
-            DotGrid()
+    private var surface: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
             TrackpadSurface(model: model, enabled: model.isReady)
-            GateNote(text: gateCopy)
-                .padding(.top, 22)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            if let gate = gateCopy {
+                Text(gate)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 22)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Trackpad")
         .accessibilityHint("One finger moves the pointer. Two fingers scroll.")
-    }
-
-    private var rail: some View {
-        ScrollWheel(enabled: model.isReady, sensitivity: model.sensitivity) { dy in
-            model.sendRemote([.scroll(ScrollBody(dx: 0, dy: dy))])
-        }
-    }
-
-    private var deck: some View {
-        Group {
-            if verticalSizeClass == .compact {
-                VStack(spacing: 10) { deckContent }
-            } else {
-                HStack(spacing: 16) { deckContent }
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity)
-        .background(RemoteTheme.plate, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(RemoteTheme.hairline, lineWidth: 1)
-        }
-    }
-
-    @ViewBuilder
-    private var deckContent: some View {
-        LatchKey(
-            title: "Drag",
-            symbol: "hand.draw",
-            latched: model.dragMode,
-            enabled: model.isReady
-        ) {
-            model.setDragMode(!model.dragMode)
-        }
-        .accessibilityHint("Locks the pointer down for dragging")
-
-        VStack(spacing: 6) {
-            Text("SPEED")
-                .font(.caption.weight(.semibold))
-                .tracking(1.2)
-                .foregroundStyle(RemoteTheme.tertiary)
-            HStack(spacing: 10) {
-                StepperKey(symbol: "minus", label: "Decrease pointer speed", enabled: model.isReady) {
-                    model.setSensitivity(max(0.5, model.sensitivity - 0.1))
-                }
-                Text(model.sensitivity.formatted(.number.precision(.fractionLength(1))))
-                    .font(.body.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(RemoteTheme.secondary)
-                    .frame(minWidth: 36)
-                    .accessibilityHidden(true)
-                StepperKey(symbol: "plus", label: "Increase pointer speed", enabled: model.isReady) {
-                    model.setSensitivity(min(2.5, model.sensitivity + 0.1))
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Pointer speed")
-
-        Button {
-            model.rightClick()
-        } label: {
-            Text("Right-click")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(RemoteTheme.text)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 44)
-        }
-        .remoteKey()
-        .disabled(!model.isReady)
-        .opacity(model.isReady ? 1 : 0.45)
-        .accessibilityLabel("Right click")
     }
 
     private var gateCopy: String? {
@@ -127,6 +61,38 @@ struct TrackpadScreen: View {
             return "Compare the pairing code on Link."
         }
         return "Open Link to connect."
+    }
+
+    private func controls(spacing: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            Toggle("Drag", isOn: Binding(
+                get: { model.dragMode },
+                set: { model.setDragMode($0) }
+            ))
+            .disabled(!model.isReady)
+            HStack {
+                Text("Speed")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { model.sensitivity },
+                    set: { model.setSensitivity($0) }
+                ), in: 0.5...2.5)
+                .accessibilityLabel("Pointer speed")
+                Text(model.sensitivity.formatted(.number.precision(.fractionLength(1))))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            Button("Right Click") {
+                model.rightClick()
+            }
+            .buttonStyle(.bordered)
+            .disabled(!model.isReady)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
 }
 
@@ -145,14 +111,14 @@ private struct ScrollWheel: View {
     var body: some View {
         ZStack {
             roller
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 5)
                 .padding(.vertical, 12)
-                .background(RemoteTheme.keyFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(RemoteTheme.hairline, lineWidth: 1)
+                        .strokeBorder(Color(.separator), lineWidth: 1)
                 }
-                .padding(.horizontal, 6)
+                .padding(.horizontal, 4)
                 .padding(.vertical, 10)
                 .allowsHitTesting(false)
             WheelDrag(
@@ -168,12 +134,8 @@ private struct ScrollWheel: View {
                 onEnd: { release() }
             )
         }
-        .frame(width: 56)
-        .frame(maxHeight: .infinity)
-        .background(RemoteTheme.well)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(RemoteTheme.hairline).frame(width: 1)
-        }
+        .frame(width: 44)
+        .background(Color(.secondarySystemBackground))
         .clipped()
         .opacity(enabled ? 1 : 0.45)
         .allowsHitTesting(enabled)
@@ -198,7 +160,7 @@ private struct ScrollWheel: View {
             ZStack(alignment: .top) {
                 ForEach(0..<count, id: \.self) { index in
                     Capsule()
-                        .fill(RemoteTheme.secondary)
+                        .fill(Color.secondary)
                         .frame(width: 18, height: 3)
                         .frame(maxWidth: .infinity)
                         .offset(y: CGFloat(index) * groove + shift - groove)
@@ -463,7 +425,6 @@ final class TrackpadTouchView: UIView {
         let hook = hook
         for touch in touches {
             guard let id = active.removeValue(forKey: ObjectIdentifier(touch)) else { continue }
-            let point = location(of: touch)
             MainActor.assumeIsolated {
                 hook.onCancel?(id)
             }
