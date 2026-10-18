@@ -1,0 +1,239 @@
+import GLOTRemoteCore
+import SwiftUI
+
+struct KeyboardScreen: View {
+    @Bindable var model: PhoneModel
+    @State private var draft = ""
+    @State private var latched: Set<String> = []
+    @State private var skipNextEdit = false
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var tight: Bool {
+        verticalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
+    }
+
+    var body: some View {
+        let key: CGFloat = tight ? 36 : 48
+        let gap: CGFloat = tight ? 4 : 8
+        Group {
+            if verticalSizeClass == .compact {
+                HStack(alignment: .top, spacing: 0) {
+                    canvasBand(captionLimit: 2)
+                        .frame(maxWidth: 280)
+                    deck(key: key, gap: gap)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    canvasBand(captionLimit: tight ? 1 : nil)
+                    Spacer(minLength: 0)
+                    deck(key: key, gap: gap)
+                }
+            }
+        }
+        .background(RemoteTheme.canvas)
+        .clipped()
+    }
+
+    private func canvasBand(captionLimit: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            field
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+            Text("Highlight a shortcut key, then type a letter. Password fields on the Mac reject these keys.")
+                .font(.caption)
+                .foregroundStyle(RemoteTheme.secondary)
+                .lineLimit(captionLimit)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            if let gate = gateCopy {
+                Text(gate)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(RemoteTheme.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func deck(key: CGFloat, gap: CGFloat) -> some View {
+        VStack(spacing: gap) {
+            ConsoleSectionHeader(title: "Modifiers")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            modifierRow(minHeight: key)
+            ConsoleSectionHeader(title: "Keys")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+            keyGrid(key: key, gap: gap)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(RemoteTheme.plate, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(RemoteTheme.hairline, lineWidth: 1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+    }
+
+    private var gateCopy: String? {
+        guard !model.isReady else { return nil }
+        if case .pairing = model.snapshot.state {
+            return "Compare the pairing code on Link."
+        }
+        return "Open Link to connect."
+    }
+
+    private var field: some View {
+        HStack(spacing: 10) {
+            Text("›")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(RemoteTheme.accent)
+                .accessibilityHidden(true)
+            TextField("Type into the Mac", text: $draft)
+                .textFieldStyle(.plain)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.return)
+                .font(.system(.title3, design: .monospaced))
+                .foregroundStyle(RemoteTheme.text)
+                .accessibilityLabel("Type into the Mac")
+        }
+        .remoteField()
+        .disabled(!model.isReady)
+            .onSubmit {
+                sendChord("return")
+            }
+            .onChange(of: draft) { old, new in
+                if skipNextEdit {
+                    skipNextEdit = false
+                    return
+                }
+                if !latched.isEmpty, new.hasPrefix(old), new.count == old.count + 1 {
+                    let added = String(new.dropFirst(old.count))
+                    if let commands = KeyboardTyping.shortcut(added, modifiers: latched) {
+                        latched = []
+                        skipNextEdit = true
+                        draft = old
+                        model.sendRemote(commands)
+                        return
+                    }
+                }
+                model.sendRemote(KeyboardTyping.commands(replacing: old, with: new))
+            }
+    }
+
+    private func modifierRow(minHeight: CGFloat) -> some View {
+        HStack(spacing: 8) {
+            modifier("command", title: "⌘", minHeight: minHeight)
+            modifier("option", title: "⌥", minHeight: minHeight)
+            modifier("control", title: "⌃", minHeight: minHeight)
+            modifier("shift", title: "⇧", minHeight: minHeight)
+        }
+    }
+
+    private func modifier(_ name: String, title: String, minHeight: CGFloat) -> some View {
+        let on = latched.contains(name)
+        return Button(title) {
+            if on {
+                latched.remove(name)
+            } else {
+                latched.insert(name)
+            }
+        }
+        .buttonStyle(RemoteKeyButtonStyle(latched: on, minHeight: minHeight))
+        .disabled(!model.isReady)
+        .accessibilityLabel(name)
+    }
+
+    private func keyGrid(key: CGFloat, gap: CGFloat) -> some View {
+        VStack(spacing: gap) {
+            HStack(spacing: 8) {
+                tapKey("esc", name: "escape", minHeight: key)
+                tapKey("tab", name: "tab", minHeight: key)
+                tapKey("delete", name: "delete", minHeight: key)
+                tapKey("return", name: "return", prominent: true, minHeight: key)
+            }
+            HStack(spacing: 8) {
+                tapKey("←", name: "arrowLeft", minHeight: key)
+                tapKey("↑", name: "arrowUp", minHeight: key)
+                tapKey("↓", name: "arrowDown", minHeight: key)
+                tapKey("→", name: "arrowRight", minHeight: key)
+            }
+            HoldKey(title: "space", minHeight: key == 36 ? 40 : 52, enabled: model.isReady) { phase in
+                model.sendRemote([.key(KeyBody(key: "space", modifiers: orderedModifiers, phase: phase))])
+                if phase == "up" {
+                    latched = []
+                }
+            }
+        }
+    }
+
+    private var orderedModifiers: [String] {
+        ["command", "option", "control", "shift"].filter { latched.contains($0) }
+    }
+
+    private func tapKey(_ title: String, name: String, prominent: Bool = false, minHeight: CGFloat = 48) -> some View {
+        HoldKey(title: title, prominent: prominent, minHeight: minHeight, enabled: model.isReady) { phase in
+            let body = KeyBody(key: name, modifiers: orderedModifiers, phase: phase)
+            model.sendRemote([.key(body)])
+            if phase == "up" {
+                latched = []
+            }
+        }
+    }
+
+    private func sendChord(_ key: String) {
+        guard let commands = KeyboardTyping.chord(key, modifiers: orderedModifiers) else { return }
+        latched = []
+        model.sendRemote(commands)
+    }
+}
+
+struct RemoteKeyButtonStyle: ButtonStyle {
+    var latched = false
+    var minHeight: CGFloat = 48
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: minHeight)
+            .remoteKey(latched: latched, pressed: configuration.isPressed)
+    }
+}
+
+private struct HoldKey: View {
+    var title: String
+    var prominent = false
+    var minHeight: CGFloat = 48
+    var enabled: Bool
+    var onPhase: (String) -> Void
+    @State private var held = false
+
+    var body: some View {
+        Text(title)
+            .font(minHeight > 80 ? .system(size: 28, weight: .medium) : .body.weight(.medium))
+            .frame(maxWidth: .infinity, minHeight: minHeight)
+            .remoteKey(prominent: prominent, pressed: held)
+            .opacity(enabled ? 1 : 0.45)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard enabled, !held else { return }
+                        held = true
+                        onPhase("down")
+                    }
+                    .onEnded { _ in
+                        guard held else { return }
+                        held = false
+                        onPhase("up")
+                    }
+            )
+            .allowsHitTesting(enabled)
+            .accessibilityLabel(title)
+    }
+}
